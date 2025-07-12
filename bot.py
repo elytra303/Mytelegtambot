@@ -1,16 +1,12 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
-# Вставь свой токен бота
-TOKEN = '7787447891:AAGfAjuILNV-Pkys7D37rTiOsHwjHbfeKWE'
+TOKEN = '7787447891:AAGfAjuILNV-Pkys7D37rTiOsHwjHbfeKWE'  # ← Вставь свой токен
+ADMIN_ID = 7534482541          # ← Вставь свой Telegram user ID
 
-# Вставь свой Telegram user ID (узнай у @userinfobot)
-ADMIN_ID = 7534482541  # Заменить на свой ID
-
-# Список активных пользователей
 active_users = set()
 
-# /start
+# Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = (
         "👋 Привет! Добро пожаловать в бот по сдаче WhatsApp!\n\n"
@@ -26,69 +22,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "9 часов — 79$\n"
         "10 часов — 90$\n"
         "1 минута — 0.1$\n"
-        "20 минут — 5$ (без холда)"
+        "20 минут — 5$ (без холд)"
     )
-    await update.message.reply_text(message)
 
-# /whatsapp
-async def whatsapp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("📲 Отправить номер", callback_data="send_number")]]
+    keyboard = [
+        [InlineKeyboardButton("📲 Сдача WhatsApp", callback_data="whatsapp")],
+        [InlineKeyboardButton("ℹ️ Информация", callback_data="info")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        "✍️ Нажмите кнопку ниже, чтобы начать сдачу WhatsApp:",
-        reply_markup=reply_markup
-    )
+    await update.message.reply_text(message, reply_markup=reply_markup)
 
-    # Уведомим админа
-    user = update.effective_user
-    await context.bot.send_message(
-        chat_id=ADMIN_ID,
-        text=f"🔔 Пользователь @{user.username or 'Без username'} (ID: {user.id}) нажал /whatsapp"
-    )
-
-# Обработка кнопки
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработка кнопок /start
+async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    data = query.data
+    user = query.from_user
     await query.answer()
 
-    user_id = query.from_user.id
-    active_users.add(user_id)
+    if data == "whatsapp":
+        active_users.add(user.id)
+        await query.edit_message_text("✍️ Пожалуйста, введите номер для сдачи WhatsApp.\n\nНапишите `/cancel`, чтобы закончить.")
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🔔 Пользователь @{user.username or 'Без username'} (ID: {user.id}) нажал Сдача WhatsApp"
+        )
 
-    await query.edit_message_text("✍️ Пожалуйста, введите номер или всю информацию для сдачи WhatsApp.\n\nНапишите `/cancel`, чтобы закончить.")
+    elif data == "info":
+        info_text = (
+            "ℹ️ Мы берём Ваш WhatsApp для рекламы!\n"
+            "💼 Вы предоставляете номер, а мы используем его в рекламных целях.\n"
+            "💰 За это Вы получаете оплату по тарифу — всё прозрачно и просто!\n"
+            "❗️Если остались вопросы — напишите нам!"
+        )
+        await query.edit_message_text(info_text)
 
-# Обработка сообщений от активных пользователей
+# Обработка сообщений от активных
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_id = user.id
-
-    if user_id in active_users:
-        username = user.username or "Без username"
+    if user.id in active_users:
         text = update.message.text
-
-        forward_text = (
-            f"📩 Новое сообщение от @{username} (ID: {user_id}):\n\n{text}"
+        username = user.username or "Без username"
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"📩 Сообщение от @{username} (ID: {user.id}):\n{text}"
         )
-        await context.bot.send_message(chat_id=ADMIN_ID, text=forward_text)
 
-# /cancel — отключает пересылку
+# Команда /cancel
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id in active_users:
-        active_users.remove(user_id)
-        await update.message.reply_text("🚫 Режим передачи информации выключен. Чтобы начать заново, напишите /whatsapp.")
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"❌ Пользователь {update.effective_user.username} закончил отправку.")
+    user = update.effective_user
+    if user.id in active_users:
+        active_users.remove(user.id)
+        await update.message.reply_text("🚫 Режим сдачи WhatsApp завершён.")
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"❌ Пользователь @{user.username or 'Без username'} завершил передачу номера."
+        )
     else:
-        await update.message.reply_text("ℹ️ Вы не активировали режим передачи. Напишите /whatsapp.")
+        await update.message.reply_text("ℹ️ Вы не активировали режим передачи.")
 
-# Запуск
+# Запуск бота
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("whatsapp", whatsapp))
     app.add_handler(CommandHandler("cancel", cancel))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(CallbackQueryHandler(handle_buttons))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_message))
 
     app.run_polling()
