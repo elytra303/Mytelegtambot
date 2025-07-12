@@ -42,7 +42,10 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "whatsapp":
         active_users.add(user.id)
-        await query.edit_message_text("✍️ Пожалуйста, введите номер для сдачи WhatsApp.\n\nНапишите `/cancel`, чтобы закончить.")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="✍️ Пожалуйста, введите номер для сдачи WhatsApp.\n\nНапишите `/cancel`, чтобы закончить."
+        )
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=f"🔔 Пользователь @{user.username or 'Без username'} (ID: {user.id}) нажал Сдача WhatsApp"
@@ -55,8 +58,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💰 За это Вы получаете оплату по тарифу — всё прозрачно и просто!\n"
             "❗️Если остались вопросы — напишите нам!"
         )
-        await query.edit_message_text(info_text)
-
+        await context.bot.send_message(chat_id=query.message.chat_id, text=info_text)
 # Обработка сообщений от активных
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
